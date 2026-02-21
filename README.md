@@ -1,20 +1,21 @@
 # Sancta List
 
-A clean Catholic to-do app for managing custom spiritual practices.
+A clean Catholic practice planner with a focused Today page and a dedicated Settings page.
 
 ## Features
 
-- Add unlimited custom practices.
-- Choose schedule frequency:
+- Two-page experience:
+  - `Today`: only what is due now, plus progress and Douay-Rheims quote.
+  - `Settings`: add, edit, and remove practices.
+- Flexible schedules:
   - Daily
   - Weekdays
-  - Weekly (pick a weekday)
-  - Monthly (pick day of month)
+  - Weekly (choose day)
+  - Monthly (choose day)
   - Every N days
-- See what is due today and mark each practice completed.
-- Keep a full practice library with next due date.
-- Douay-Rheims public-domain Bible verse section with refresh button.
-- All data is saved locally in your browser.
+- Mark practices complete for today.
+- Douay-Rheims public-domain Bible quotes with refresh.
+- Local browser storage (private to your device/browser).
 
 ## Run locally
 
