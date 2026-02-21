@@ -6,14 +6,9 @@ import {
   Frequency,
   Practice,
   WEEKDAY_OPTIONS,
-  addDays,
   clamp,
-  formatDateCompact,
   frequencyLabel,
-  isDueOnDate,
-  listDueOnDate,
   makeId,
-  nextDueDate,
   removePracticeFromCompletion,
   toDateKey,
 } from "@/lib/sancta";
@@ -85,12 +80,11 @@ function AddPracticeForm({
     <form className="settings-form" onSubmit={onSubmit}>
       <div>
         <label className="field-label" htmlFor="title-new">
-          Practice name
+          Name
         </label>
         <input
           id="title-new"
           className="field-input"
-          placeholder="Ex: Morning offering"
           maxLength={90}
           value={draft.title}
           onChange={(event) => {
@@ -115,7 +109,7 @@ function AddPracticeForm({
           }}
         >
           <option value="daily">Daily</option>
-          <option value="weekdays">Weekdays (Mon-Fri)</option>
+          <option value="weekdays">Weekdays</option>
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
           <option value="interval">Every N days</option>
@@ -125,7 +119,7 @@ function AddPracticeForm({
       {draft.frequency === "weekly" ? (
         <div>
           <label className="field-label" htmlFor="weekday-new">
-            Day of week
+            Weekday
           </label>
           <select
             id="weekday-new"
@@ -150,7 +144,7 @@ function AddPracticeForm({
       {draft.frequency === "monthly" ? (
         <div>
           <label className="field-label" htmlFor="monthday-new">
-            Day of month
+            Day
           </label>
           <input
             id="monthday-new"
@@ -172,7 +166,7 @@ function AddPracticeForm({
       {draft.frequency === "interval" ? (
         <div>
           <label className="field-label" htmlFor="interval-new">
-            Repeat every (days)
+            Days
           </label>
           <input
             id="interval-new"
@@ -192,7 +186,7 @@ function AddPracticeForm({
       ) : null}
 
       <button type="submit" className="solid-btn">
-        Add Practice
+        Add
       </button>
     </form>
   );
@@ -213,7 +207,7 @@ function EditPracticeForm({
     <div className="edit-box">
       <div>
         <label className="field-label" htmlFor="title-edit">
-          Practice name
+          Name
         </label>
         <input
           id="title-edit"
@@ -253,7 +247,7 @@ function EditPracticeForm({
           }}
         >
           <option value="daily">Daily</option>
-          <option value="weekdays">Weekdays (Mon-Fri)</option>
+          <option value="weekdays">Weekdays</option>
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
           <option value="interval">Every N days</option>
@@ -263,7 +257,7 @@ function EditPracticeForm({
       {draft.frequency === "weekly" ? (
         <div>
           <label className="field-label" htmlFor="weekday-edit">
-            Day of week
+            Weekday
           </label>
           <select
             id="weekday-edit"
@@ -292,7 +286,7 @@ function EditPracticeForm({
       {draft.frequency === "monthly" ? (
         <div>
           <label className="field-label" htmlFor="monthday-edit">
-            Day of month
+            Day
           </label>
           <input
             id="monthday-edit"
@@ -318,7 +312,7 @@ function EditPracticeForm({
       {draft.frequency === "interval" ? (
         <div>
           <label className="field-label" htmlFor="interval-edit">
-            Repeat every (days)
+            Days
           </label>
           <input
             id="interval-edit"
@@ -341,7 +335,7 @@ function EditPracticeForm({
         </div>
       ) : null}
 
-      <div className="edit-actions">
+      <div className="row-actions">
         <button type="button" className="solid-btn" onClick={onSave}>
           Save
         </button>
@@ -367,22 +361,16 @@ export default function SettingsPage() {
   const [newDraft, setNewDraft] = useState<PracticeDraft>(() => makeDefaultDraft(dayOfMonth));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<PracticeDraft | null>(null);
-  const [statusMessage, setStatusMessage] = useState("");
 
   const sortedPractices = useMemo(() => {
     return [...practices].sort((a, b) => a.title.localeCompare(b.title));
   }, [practices]);
-
-  const dueTodayCount = useMemo(() => {
-    return listDueOnDate(practices, todayKey).length;
-  }, [practices, todayKey]);
 
   function handleAddPractice(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
 
     const trimmedTitle = newDraft.title.trim();
     if (!trimmedTitle) {
-      setStatusMessage("Please enter a practice name.");
       return;
     }
 
@@ -395,16 +383,13 @@ export default function SettingsPage() {
     };
 
     const nextPractice = applyDraft(basePractice, newDraft);
-
     setPractices((current) => [nextPractice, ...current]);
     setNewDraft(makeDefaultDraft(dayOfMonth));
-    setStatusMessage(`Added \"${nextPractice.title}\".`);
   }
 
   function startEditing(practice: Practice): void {
     setEditingId(practice.id);
     setEditDraft(draftFromPractice(practice));
-    setStatusMessage("");
   }
 
   function cancelEditing(): void {
@@ -419,11 +404,8 @@ export default function SettingsPage() {
 
     const trimmedTitle = editDraft.title.trim();
     if (!trimmedTitle) {
-      setStatusMessage("Practice name cannot be empty.");
       return;
     }
-
-    let updatedTitle = "";
 
     setPractices((current) =>
       current.map((practice) => {
@@ -431,19 +413,14 @@ export default function SettingsPage() {
           return practice;
         }
 
-        const patched = applyDraft(practice, {
+        return applyDraft(practice, {
           ...editDraft,
           title: trimmedTitle,
         });
-
-        updatedTitle = patched.title;
-        return patched;
       }),
     );
 
-    setEditingId(null);
-    setEditDraft(null);
-    setStatusMessage(`Saved changes to \"${updatedTitle || "practice"}\".`);
+    cancelEditing();
   }
 
   function removePractice(practice: Practice): void {
@@ -453,16 +430,14 @@ export default function SettingsPage() {
     if (editingId === practice.id) {
       cancelEditing();
     }
-
-    setStatusMessage(`Removed \"${practice.title}\".`);
   }
 
   if (!isLoaded) {
     return (
       <div className="shell">
-        <main className="layout loading-layout">
+        <main className="layout">
           <section className="card">
-            <p>Loading settings...</p>
+            <p>Loading...</p>
           </section>
         </main>
       </div>
@@ -471,15 +446,9 @@ export default function SettingsPage() {
 
   return (
     <div className="shell">
-      <div className="aura aura-one" />
-      <div className="aura aura-two" />
-
       <main className="layout">
-        <header className="topbar enter">
-          <div className="brand-block">
-            <p className="brand-kicker">Catholic Rule of Life</p>
-            <h1 className="brand-title">Practice Settings</h1>
-          </div>
+        <header className="topbar">
+          <h1 className="brand-title">Settings</h1>
 
           <nav className="tabs" aria-label="Primary">
             <Link href="/" className="tab">
@@ -491,53 +460,20 @@ export default function SettingsPage() {
           </nav>
         </header>
 
-        <section className="hero enter enter-delay-1">
-          <div>
-            <p className="hero-day">Build your own practice library</p>
-            <p className="hero-line">
-              Add, adjust, and remove practices here. The Today page stays focused and uncluttered.
-            </p>
-          </div>
-
-          <div className="hero-stats" role="group" aria-label="Settings stats">
-            <article className="stat-tile">
-              <p className="stat-label">Practices</p>
-              <p className="stat-value">{practices.length}</p>
-            </article>
-            <article className="stat-tile">
-              <p className="stat-label">Due Today</p>
-              <p className="stat-value">{dueTodayCount}</p>
-            </article>
-            <article className="stat-tile">
-              <p className="stat-label">Auto-save</p>
-              <p className="stat-value">On</p>
-            </article>
-          </div>
-        </section>
-
-        {statusMessage ? <p className="status-banner enter enter-delay-2">{statusMessage}</p> : null}
-
-        <section className="settings-grid stagger">
-          <article className="card settings-add-card">
-            <h2>Add New Practice</h2>
-            <p className="muted-small">Your practices are private and saved locally in this browser.</p>
-
+        <section className="settings-grid">
+          <article className="card">
+            <h2>Add</h2>
             <AddPracticeForm draft={newDraft} setDraft={setNewDraft} onSubmit={handleAddPractice} />
           </article>
 
-          <article className="card settings-list-card">
-            <h2>Manage Practices</h2>
+          <article className="card">
+            <h2>Practices</h2>
 
             {sortedPractices.length === 0 ? (
-              <div className="empty-box">
-                <p>No practices yet.</p>
-                <p>Add your first one using the form.</p>
-              </div>
+              <p className="empty">No tasks.</p>
             ) : (
               <ul className="list-clean">
                 {sortedPractices.map((practice) => {
-                  const dueNow = isDueOnDate(practice, todayKey);
-                  const nextKey = nextDueDate(practice, dueNow ? addDays(todayKey, 1) : todayKey);
                   const isEditing = editingId === practice.id && Boolean(editDraft);
 
                   return (
@@ -553,10 +489,7 @@ export default function SettingsPage() {
                         <>
                           <div>
                             <h3>{practice.title}</h3>
-                            <p>{frequencyLabel(practice)}</p>
-                            <p className="muted-small">
-                              {dueNow ? "Due today" : `Next due ${formatDateCompact(nextKey)}`}
-                            </p>
+                            <p className="small-note">{frequencyLabel(practice)}</p>
                           </div>
 
                           <div className="row-actions">
