@@ -26,10 +26,30 @@ export type SanctaState = {
   quote?: VerseQuote;
 };
 
+export type LiturgicalSeasonKey =
+  | "advent"
+  | "christmas"
+  | "lent"
+  | "easter"
+  | "ordinary";
+
+export type LiturgicalSeason = {
+  key: LiturgicalSeasonKey;
+  label: string;
+};
+
 export type QuoteResult = {
   quote: VerseQuote;
   warning?: string;
 };
+
+export type SanctaExportPayload = {
+  version: number;
+  exportedAt: string;
+  state: SanctaState;
+};
+
+const COMPLETION_RETENTION_DAYS = 60;
 
 export const STORAGE_KEY = "sancta-list-v1";
 
@@ -43,51 +63,212 @@ export const WEEKDAY_OPTIONS: Array<{ value: number; label: string }> = [
   { value: 6, label: "Saturday" },
 ];
 
-const DOUAY_RHEIMS_REFERENCES = [
-  "Matthew 5:8",
-  "John 14:6",
-  "Philippians 4:6",
-  "Romans 12:12",
-  "Psalm 118:24",
-  "Psalm 22:1",
-  "Luke 1:38",
-  "Joshua 1:9",
-  "Micah 6:8",
-  "Hebrews 11:1",
-  "1 Thessalonians 5:16",
-  "2 Timothy 1:7",
-  "Proverbs 3:5",
-  "Ecclesiastes 3:1",
-  "James 1:5",
-  "Matthew 11:28",
-  "Isaiah 41:10",
-  "Galatians 5:22",
-  "Romans 8:28",
-  "John 15:5",
-] as const;
+const LITURGICAL_LABELS: Record<LiturgicalSeasonKey, string> = {
+  advent: "Advent",
+  christmas: "Christmas",
+  lent: "Lent",
+  easter: "Easter",
+  ordinary: "Ordinary Time",
+};
 
-const FALLBACK_QUOTES: Array<Pick<VerseQuote, "reference" | "text">> = [
-  {
-    reference: "Matthew 5:8",
-    text: "Blessed are the clean of heart: for they shall see God.",
-  },
-  {
-    reference: "John 14:6",
-    text: "Jesus saith to him: I am the way, and the truth, and the life.",
-  },
-  {
-    reference: "Romans 12:12",
-    text: "Rejoicing in hope, patient in tribulation, instant in prayer.",
-  },
-  {
-    reference: "1 Thessalonians 5:17",
-    text: "Pray without ceasing.",
-  },
-  {
-    reference: "Proverbs 3:5",
-    text: "Have confidence in the Lord with all thy heart, and lean not upon thy own prudence.",
-  },
-];
+const SEASONAL_REFERENCES: Record<LiturgicalSeasonKey, readonly string[]> = {
+  advent: [
+    "Isaiah 7:14",
+    "Isaiah 9:2",
+    "Isaiah 9:6",
+    "Isaiah 11:1",
+    "Isaiah 35:4",
+    "Isaiah 40:3",
+    "Jeremiah 33:14",
+    "Micah 5:2",
+    "Zechariah 9:9",
+    "Malachi 3:1",
+    "Psalm 24:7",
+    "Psalm 80:3",
+    "Matthew 1:23",
+    "Matthew 24:42",
+    "Luke 1:26",
+    "Luke 1:38",
+    "Luke 1:46",
+    "Luke 1:68",
+    "Romans 13:11",
+    "James 5:8",
+    "Revelation 22:20",
+  ],
+  christmas: [
+    "Isaiah 9:6",
+    "Micah 5:2",
+    "Psalm 98:3",
+    "Psalm 96:11",
+    "Matthew 2:1",
+    "Matthew 2:11",
+    "Luke 2:10",
+    "Luke 2:11",
+    "Luke 2:14",
+    "Luke 2:29",
+    "John 1:5",
+    "John 1:14",
+    "Galatians 4:4",
+    "Titus 3:4",
+    "Hebrews 1:1",
+    "Colossians 1:15",
+    "1 John 4:9",
+    "Philippians 2:10",
+    "2 Corinthians 9:15",
+    "Ephesians 2:4",
+  ],
+  lent: [
+    "Joel 2:12",
+    "Isaiah 58:6",
+    "Ezekiel 36:26",
+    "Hosea 6:1",
+    "Jonah 2:2",
+    "Psalm 51:10",
+    "Psalm 130:1",
+    "Proverbs 28:13",
+    "Matthew 4:4",
+    "Matthew 6:6",
+    "Matthew 6:21",
+    "Matthew 11:28",
+    "Luke 9:23",
+    "Luke 15:18",
+    "Luke 18:13",
+    "John 8:11",
+    "James 4:8",
+    "1 John 1:9",
+    "Romans 12:12",
+    "2 Corinthians 5:20",
+    "2 Corinthians 7:10",
+    "Deuteronomy 8:3",
+  ],
+  easter: [
+    "Psalm 118:24",
+    "Matthew 28:6",
+    "Mark 16:6",
+    "Luke 24:6",
+    "Luke 24:32",
+    "John 11:25",
+    "John 20:29",
+    "Acts 2:24",
+    "Acts 4:12",
+    "Acts 10:40",
+    "Romans 6:4",
+    "Romans 8:11",
+    "1 Corinthians 15:20",
+    "2 Corinthians 5:17",
+    "Ephesians 2:5",
+    "Colossians 3:1",
+    "1 Peter 1:3",
+    "Revelation 1:18",
+    "Hebrews 12:2",
+    "John 14:19",
+  ],
+  ordinary: [
+    "Joshua 1:9",
+    "Psalm 16:8",
+    "Psalm 19:14",
+    "Psalm 23:1",
+    "Psalm 27:1",
+    "Psalm 34:8",
+    "Psalm 37:5",
+    "Psalm 46:10",
+    "Psalm 90:14",
+    "Psalm 103:2",
+    "Proverbs 3:5",
+    "Proverbs 16:3",
+    "Ecclesiastes 3:1",
+    "Isaiah 41:10",
+    "Isaiah 43:2",
+    "Jeremiah 29:11",
+    "Micah 6:8",
+    "Matthew 5:8",
+    "Matthew 5:16",
+    "Matthew 6:33",
+    "Matthew 11:30",
+    "John 8:12",
+    "John 10:10",
+    "John 14:6",
+    "John 15:5",
+    "Romans 8:28",
+    "Romans 12:2",
+    "Romans 12:12",
+    "1 Corinthians 10:31",
+    "1 Corinthians 13:4",
+    "2 Corinthians 12:9",
+    "Galatians 5:22",
+    "Philippians 4:6",
+    "Philippians 4:13",
+    "Colossians 3:12",
+    "1 Thessalonians 5:16",
+    "1 Thessalonians 5:17",
+    "2 Timothy 1:7",
+    "Hebrews 11:1",
+    "James 1:5",
+    "1 Peter 5:7",
+    "1 John 4:19",
+  ],
+};
+
+const FALLBACK_QUOTES: Record<LiturgicalSeasonKey, Array<Pick<VerseQuote, "reference" | "text">>> = {
+  advent: [
+    {
+      reference: "Luke 1:38",
+      text: "Behold the handmaid of the Lord; be it done to me according to thy word.",
+    },
+    {
+      reference: "Isaiah 9:2",
+      text: "The people that walked in darkness, have seen a great light.",
+    },
+  ],
+  christmas: [
+    {
+      reference: "Luke 2:11",
+      text: "For, this day, is born to you a Saviour, who is Christ the Lord, in the city of David.",
+    },
+    {
+      reference: "John 1:14",
+      text: "And the Word was made flesh, and dwelt among us.",
+    },
+  ],
+  lent: [
+    {
+      reference: "Matthew 11:28",
+      text: "Come to me, all you that labour, and are burdened, and I will refresh you.",
+    },
+    {
+      reference: "Psalm 51:10",
+      text: "Create a clean heart in me, O God: and renew a right spirit within my bowels.",
+    },
+  ],
+  easter: [
+    {
+      reference: "Matthew 28:6",
+      text: "He is not here, for he is risen, as he said.",
+    },
+    {
+      reference: "John 11:25",
+      text: "I am the resurrection and the life: he that believeth in me, although he be dead, shall live.",
+    },
+  ],
+  ordinary: [
+    {
+      reference: "Matthew 5:8",
+      text: "Blessed are the clean of heart: for they shall see God.",
+    },
+    {
+      reference: "Romans 12:12",
+      text: "Rejoicing in hope, patient in tribulation, instant in prayer.",
+    },
+    {
+      reference: "1 Thessalonians 5:17",
+      text: "Pray without ceasing.",
+    },
+    {
+      reference: "Proverbs 3:5",
+      text: "Have confidence in the Lord with all thy heart, and lean not upon thy own prudence.",
+    },
+  ],
+};
 
 const EMPTY_STATE: SanctaState = {
   practices: [],
@@ -120,6 +301,54 @@ function isQuote(raw: unknown): raw is VerseQuote {
     isDateKey(value.dateKey) &&
     typeof value.fetchedAt === "string"
   );
+}
+
+function getEpiphanyDate(year: number): Date {
+  const jan2 = new Date(year, 0, 2, 12, 0, 0, 0);
+  const offset = (7 - jan2.getDay()) % 7;
+  const epiphany = new Date(jan2);
+  epiphany.setDate(jan2.getDate() + offset);
+  return epiphany;
+}
+
+function getBaptismOfTheLord(year: number): Date {
+  const epiphany = getEpiphanyDate(year);
+  const baptism = new Date(epiphany);
+
+  if (epiphany.getDate() >= 7) {
+    baptism.setDate(epiphany.getDate() + 1);
+  } else {
+    baptism.setDate(epiphany.getDate() + 7);
+  }
+
+  baptism.setHours(12, 0, 0, 0);
+  return baptism;
+}
+
+function getAdventStart(year: number): Date {
+  const nov27 = new Date(year, 10, 27, 12, 0, 0, 0);
+  const offset = (7 - nov27.getDay()) % 7;
+  const advent = new Date(nov27);
+  advent.setDate(nov27.getDate() + offset);
+  return advent;
+}
+
+function getEasterDate(year: number): Date {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
 }
 
 export function makeId(): string {
@@ -177,6 +406,48 @@ export function cleanQuoteText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
+export function getLiturgicalSeason(dateOrDateKey: Date | string): LiturgicalSeason {
+  const date = typeof dateOrDateKey === "string" ? parseDateKey(dateOrDateKey) : new Date(dateOrDateKey);
+  const year = date.getFullYear();
+
+  const christmasStartCurrentYear = new Date(year, 11, 25, 12, 0, 0, 0);
+  const christmasStartPrevYear = new Date(year - 1, 11, 25, 12, 0, 0, 0);
+  const adventStart = getAdventStart(year);
+
+  const easter = getEasterDate(year);
+  const ashWednesday = new Date(easter);
+  ashWednesday.setDate(easter.getDate() - 46);
+  ashWednesday.setHours(12, 0, 0, 0);
+
+  const pentecost = new Date(easter);
+  pentecost.setDate(easter.getDate() + 49);
+  pentecost.setHours(12, 0, 0, 0);
+
+  const baptismThisYear = getBaptismOfTheLord(year);
+
+  if (date >= christmasStartCurrentYear) {
+    return { key: "christmas", label: LITURGICAL_LABELS.christmas };
+  }
+
+  if (date >= adventStart && date < christmasStartCurrentYear) {
+    return { key: "advent", label: LITURGICAL_LABELS.advent };
+  }
+
+  if (date >= ashWednesday && date < easter) {
+    return { key: "lent", label: LITURGICAL_LABELS.lent };
+  }
+
+  if (date >= easter && date <= pentecost) {
+    return { key: "easter", label: LITURGICAL_LABELS.easter };
+  }
+
+  if (date >= christmasStartPrevYear && date <= baptismThisYear) {
+    return { key: "christmas", label: LITURGICAL_LABELS.christmas };
+  }
+
+  return { key: "ordinary", label: LITURGICAL_LABELS.ordinary };
+}
+
 export function normalizePractice(raw: unknown): Practice | null {
   if (!raw || typeof raw !== "object") {
     return null;
@@ -214,7 +485,10 @@ export function normalizePractice(raw: unknown): Practice | null {
 
 export function normalizeState(raw: unknown): SanctaState {
   if (!raw || typeof raw !== "object") {
-    return EMPTY_STATE;
+    return {
+      practices: [],
+      completionByDate: {},
+    };
   }
 
   const parsed = raw as Partial<SanctaState>;
@@ -227,10 +501,15 @@ export function normalizeState(raw: unknown): SanctaState {
 
   const validIds = new Set(practices.map((practice) => practice.id));
   const completionByDate: CompletionByDate = {};
+  const cutoffDay = dayNumber(toDateKey(new Date())) - COMPLETION_RETENTION_DAYS;
 
   if (parsed.completionByDate && typeof parsed.completionByDate === "object") {
     Object.entries(parsed.completionByDate).forEach(([dateKey, ids]) => {
       if (!isDateKey(dateKey) || !Array.isArray(ids)) {
+        return;
+      }
+
+      if (dayNumber(dateKey) < cutoffDay) {
         return;
       }
 
@@ -380,12 +659,48 @@ export function removePracticeFromCompletion(
   return next;
 }
 
+export function createExportPayload(state: SanctaState): SanctaExportPayload {
+  const normalized = normalizeState(state);
+
+  return {
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    state: normalized,
+  };
+}
+
+export function parseImportPayload(raw: unknown): SanctaState | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const value = raw as Record<string, unknown>;
+
+  if ("state" in value) {
+    const nested = value.state;
+    if (!nested || typeof nested !== "object") {
+      return null;
+    }
+
+    return normalizeState(nested);
+  }
+
+  if ("practices" in value || "completionByDate" in value || "quote" in value) {
+    return normalizeState(value);
+  }
+
+  return null;
+}
+
 export async function fetchDouayRheimsQuote(
   dateKey: string,
   currentReference?: string,
+  seasonKey?: LiturgicalSeasonKey,
 ): Promise<QuoteResult> {
-  const referencePool = DOUAY_RHEIMS_REFERENCES.filter((reference) => reference !== currentReference);
-  const reference = randomItem(referencePool.length > 0 ? referencePool : DOUAY_RHEIMS_REFERENCES);
+  const resolvedSeasonKey = seasonKey ?? getLiturgicalSeason(dateKey).key;
+  const seasonalPool = SEASONAL_REFERENCES[resolvedSeasonKey];
+  const referencePool = seasonalPool.filter((reference) => reference !== currentReference);
+  const reference = randomItem(referencePool.length > 0 ? referencePool : seasonalPool);
 
   try {
     const response = await fetch(
@@ -418,8 +733,9 @@ export async function fetchDouayRheimsQuote(
       },
     };
   } catch {
-    const fallbackPool = FALLBACK_QUOTES.filter((quote) => quote.reference !== currentReference);
-    const fallback = randomItem(fallbackPool.length > 0 ? fallbackPool : FALLBACK_QUOTES);
+    const fallbacks = FALLBACK_QUOTES[resolvedSeasonKey];
+    const fallbackPool = fallbacks.filter((quote) => quote.reference !== currentReference);
+    const fallback = randomItem(fallbackPool.length > 0 ? fallbackPool : fallbacks);
 
     return {
       quote: {

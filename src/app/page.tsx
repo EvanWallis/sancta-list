@@ -5,18 +5,30 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Practice,
   fetchDouayRheimsQuote,
+  getLiturgicalSeason,
   listDueOnDate,
   toDateKey,
   toggleCompleted,
 } from "@/lib/sancta";
 import { useSanctaState } from "@/lib/useSanctaState";
 
-function sortByTitle(items: Practice[]): Practice[] {
-  return [...items].sort((a, b) => a.title.localeCompare(b.title));
+function sortDueItems(items: Practice[], completedIds: Set<string>): Practice[] {
+  return [...items].sort((left, right) => {
+    const leftDone = completedIds.has(left.id);
+    const rightDone = completedIds.has(right.id);
+
+    if (leftDone !== rightDone) {
+      return leftDone ? 1 : -1;
+    }
+
+    return left.title.localeCompare(right.title);
+  });
 }
 
 export default function TodayPage() {
   const todayKey = useMemo(() => toDateKey(new Date()), []);
+  const season = useMemo(() => getLiturgicalSeason(todayKey), [todayKey]);
+
   const {
     isLoaded,
     practices,
@@ -29,25 +41,33 @@ export default function TodayPage() {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteWarning, setQuoteWarning] = useState("");
 
-  const dueToday = useMemo(() => {
-    return sortByTitle(listDueOnDate(practices, todayKey));
-  }, [practices, todayKey]);
-
   const completedTodaySet = useMemo(() => {
     return new Set(completionByDate[todayKey] ?? []);
   }, [completionByDate, todayKey]);
+
+  const dueToday = useMemo(() => {
+    return sortDueItems(listDueOnDate(practices, todayKey), completedTodaySet);
+  }, [completedTodaySet, practices, todayKey]);
+
+  const completedCount = useMemo(() => {
+    return dueToday.filter((practice) => completedTodaySet.has(practice.id)).length;
+  }, [completedTodaySet, dueToday]);
 
   const loadQuote = useCallback(
     async (forceNew: boolean) => {
       setQuoteLoading(true);
 
-      const result = await fetchDouayRheimsQuote(todayKey, forceNew ? quote?.reference : undefined);
+      const result = await fetchDouayRheimsQuote(
+        todayKey,
+        forceNew ? quote?.reference : undefined,
+        season.key,
+      );
       setQuote(result.quote);
       setQuoteWarning(result.warning ?? "");
 
       setQuoteLoading(false);
     },
-    [quote?.reference, setQuote, todayKey],
+    [quote?.reference, season.key, setQuote, todayKey],
   );
 
   useEffect(() => {
@@ -86,7 +106,10 @@ export default function TodayPage() {
     <div className="shell">
       <main className="layout">
         <header className="topbar">
-          <h1 className="brand-title">Sancta List</h1>
+          <div>
+            <h1 className="brand-title">Sancta List</h1>
+            <p className="small-note season-note">{season.label}</p>
+          </div>
 
           <nav className="tabs" aria-label="Primary">
             <Link href="/" className="tab is-active">
@@ -121,7 +144,12 @@ export default function TodayPage() {
         </section>
 
         <section className="card">
-          <h2>Today</h2>
+          <div className="section-head">
+            <h2>Today</h2>
+            <p className="small-note progress-note">
+              {completedCount}/{dueToday.length} done
+            </p>
+          </div>
 
           {dueToday.length === 0 ? (
             <p className="empty">No tasks.</p>

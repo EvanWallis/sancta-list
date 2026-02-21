@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Dispatch, FormEvent, SetStateAction, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import {
   Frequency,
   Practice,
+  SanctaState,
   WEEKDAY_OPTIONS,
   clamp,
+  createExportPayload,
   frequencyLabel,
   makeId,
+  parseImportPayload,
   removePracticeFromCompletion,
   toDateKey,
 } from "@/lib/sancta";
@@ -20,6 +23,11 @@ type PracticeDraft = {
   weeklyDay: number;
   monthlyDay: number;
   intervalDays: number;
+};
+
+type EditingState = {
+  id: string;
+  draft: PracticeDraft;
 };
 
 function makeDefaultDraft(dayOfMonth: number): PracticeDraft {
@@ -67,45 +75,54 @@ function applyDraft(practice: Practice, draft: PracticeDraft): Practice {
   return next;
 }
 
-function AddPracticeForm({
+function PracticeForm({
+  idPrefix,
   draft,
-  setDraft,
+  onDraftChange,
   onSubmit,
+  submitLabel,
+  onCancel,
 }: {
+  idPrefix: string;
   draft: PracticeDraft;
-  setDraft: Dispatch<SetStateAction<PracticeDraft>>;
+  onDraftChange: (next: PracticeDraft) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  submitLabel: string;
+  onCancel?: () => void;
 }) {
   return (
     <form className="settings-form" onSubmit={onSubmit}>
       <div>
-        <label className="field-label" htmlFor="title-new">
+        <label className="field-label" htmlFor={`${idPrefix}-name`}>
           Name
         </label>
         <input
-          id="title-new"
+          id={`${idPrefix}-name`}
           className="field-input"
           maxLength={90}
           value={draft.title}
           onChange={(event) => {
-            setDraft((current) => ({ ...current, title: event.target.value }));
+            onDraftChange({
+              ...draft,
+              title: event.target.value,
+            });
           }}
         />
       </div>
 
       <div>
-        <label className="field-label" htmlFor="frequency-new">
+        <label className="field-label" htmlFor={`${idPrefix}-frequency`}>
           Frequency
         </label>
         <select
-          id="frequency-new"
+          id={`${idPrefix}-frequency`}
           className="field-input"
           value={draft.frequency}
           onChange={(event) => {
-            setDraft((current) => ({
-              ...current,
+            onDraftChange({
+              ...draft,
               frequency: event.target.value as Frequency,
-            }));
+            });
           }}
         >
           <option value="daily">Daily</option>
@@ -118,18 +135,18 @@ function AddPracticeForm({
 
       {draft.frequency === "weekly" ? (
         <div>
-          <label className="field-label" htmlFor="weekday-new">
+          <label className="field-label" htmlFor={`${idPrefix}-weekday`}>
             Weekday
           </label>
           <select
-            id="weekday-new"
+            id={`${idPrefix}-weekday`}
             className="field-input"
             value={draft.weeklyDay}
             onChange={(event) => {
-              setDraft((current) => ({
-                ...current,
+              onDraftChange({
+                ...draft,
                 weeklyDay: Number(event.target.value),
-              }));
+              });
             }}
           >
             {WEEKDAY_OPTIONS.map((option) => (
@@ -143,21 +160,21 @@ function AddPracticeForm({
 
       {draft.frequency === "monthly" ? (
         <div>
-          <label className="field-label" htmlFor="monthday-new">
+          <label className="field-label" htmlFor={`${idPrefix}-monthday`}>
             Day
           </label>
           <input
-            id="monthday-new"
+            id={`${idPrefix}-monthday`}
             className="field-input"
             type="number"
             min={1}
             max={31}
             value={draft.monthlyDay}
             onChange={(event) => {
-              setDraft((current) => ({
-                ...current,
+              onDraftChange({
+                ...draft,
                 monthlyDay: Number(event.target.value),
-              }));
+              });
             }}
           />
         </div>
@@ -165,185 +182,37 @@ function AddPracticeForm({
 
       {draft.frequency === "interval" ? (
         <div>
-          <label className="field-label" htmlFor="interval-new">
+          <label className="field-label" htmlFor={`${idPrefix}-interval`}>
             Days
           </label>
           <input
-            id="interval-new"
+            id={`${idPrefix}-interval`}
             className="field-input"
             type="number"
             min={1}
             max={365}
             value={draft.intervalDays}
             onChange={(event) => {
-              setDraft((current) => ({
-                ...current,
+              onDraftChange({
+                ...draft,
                 intervalDays: Number(event.target.value),
-              }));
-            }}
-          />
-        </div>
-      ) : null}
-
-      <button type="submit" className="solid-btn">
-        Add
-      </button>
-    </form>
-  );
-}
-
-function EditPracticeForm({
-  draft,
-  setDraft,
-  onSave,
-  onCancel,
-}: {
-  draft: PracticeDraft;
-  setDraft: Dispatch<SetStateAction<PracticeDraft | null>>;
-  onSave: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="edit-box">
-      <div>
-        <label className="field-label" htmlFor="title-edit">
-          Name
-        </label>
-        <input
-          id="title-edit"
-          className="field-input"
-          value={draft.title}
-          maxLength={90}
-          onChange={(event) => {
-            setDraft((current) =>
-              current
-                ? {
-                    ...current,
-                    title: event.target.value,
-                  }
-                : current,
-            );
-          }}
-        />
-      </div>
-
-      <div>
-        <label className="field-label" htmlFor="frequency-edit">
-          Frequency
-        </label>
-        <select
-          id="frequency-edit"
-          className="field-input"
-          value={draft.frequency}
-          onChange={(event) => {
-            setDraft((current) =>
-              current
-                ? {
-                    ...current,
-                    frequency: event.target.value as Frequency,
-                  }
-                : current,
-            );
-          }}
-        >
-          <option value="daily">Daily</option>
-          <option value="weekdays">Weekdays</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-          <option value="interval">Every N days</option>
-        </select>
-      </div>
-
-      {draft.frequency === "weekly" ? (
-        <div>
-          <label className="field-label" htmlFor="weekday-edit">
-            Weekday
-          </label>
-          <select
-            id="weekday-edit"
-            className="field-input"
-            value={draft.weeklyDay}
-            onChange={(event) => {
-              setDraft((current) =>
-                current
-                  ? {
-                      ...current,
-                      weeklyDay: Number(event.target.value),
-                    }
-                  : current,
-              );
-            }}
-          >
-            {WEEKDAY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : null}
-
-      {draft.frequency === "monthly" ? (
-        <div>
-          <label className="field-label" htmlFor="monthday-edit">
-            Day
-          </label>
-          <input
-            id="monthday-edit"
-            className="field-input"
-            type="number"
-            min={1}
-            max={31}
-            value={draft.monthlyDay}
-            onChange={(event) => {
-              setDraft((current) =>
-                current
-                  ? {
-                      ...current,
-                      monthlyDay: Number(event.target.value),
-                    }
-                  : current,
-              );
-            }}
-          />
-        </div>
-      ) : null}
-
-      {draft.frequency === "interval" ? (
-        <div>
-          <label className="field-label" htmlFor="interval-edit">
-            Days
-          </label>
-          <input
-            id="interval-edit"
-            className="field-input"
-            type="number"
-            min={1}
-            max={365}
-            value={draft.intervalDays}
-            onChange={(event) => {
-              setDraft((current) =>
-                current
-                  ? {
-                      ...current,
-                      intervalDays: Number(event.target.value),
-                    }
-                  : current,
-              );
+              });
             }}
           />
         </div>
       ) : null}
 
       <div className="row-actions">
-        <button type="button" className="solid-btn" onClick={onSave}>
-          Save
+        <button type="submit" className="solid-btn">
+          {submitLabel}
         </button>
-        <button type="button" className="ghost-btn" onClick={onCancel}>
-          Cancel
-        </button>
+        {onCancel ? (
+          <button type="button" className="ghost-btn" onClick={onCancel}>
+            Cancel
+          </button>
+        ) : null}
       </div>
-    </div>
+    </form>
   );
 }
 
@@ -355,12 +224,16 @@ export default function SettingsPage() {
     isLoaded,
     practices,
     setPractices,
+    completionByDate,
     setCompletionByDate,
+    quote,
+    setQuote,
   } = useSanctaState();
 
   const [newDraft, setNewDraft] = useState<PracticeDraft>(() => makeDefaultDraft(dayOfMonth));
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<PracticeDraft | null>(null);
+  const [editing, setEditing] = useState<EditingState | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [notice, setNotice] = useState("");
 
   const sortedPractices = useMemo(() => {
     return [...practices].sort((a, b) => a.title.localeCompare(b.title));
@@ -385,24 +258,27 @@ export default function SettingsPage() {
     const nextPractice = applyDraft(basePractice, newDraft);
     setPractices((current) => [nextPractice, ...current]);
     setNewDraft(makeDefaultDraft(dayOfMonth));
+    setNotice("Added.");
   }
 
   function startEditing(practice: Practice): void {
-    setEditingId(practice.id);
-    setEditDraft(draftFromPractice(practice));
+    setEditing({ id: practice.id, draft: draftFromPractice(practice) });
+    setPendingDeleteId(null);
+    setNotice("");
   }
 
   function cancelEditing(): void {
-    setEditingId(null);
-    setEditDraft(null);
+    setEditing(null);
   }
 
-  function saveEditing(practiceId: string): void {
-    if (!editDraft) {
+  function saveEditing(event: FormEvent<HTMLFormElement>, practiceId: string): void {
+    event.preventDefault();
+
+    if (!editing || editing.id !== practiceId) {
       return;
     }
 
-    const trimmedTitle = editDraft.title.trim();
+    const trimmedTitle = editing.draft.title.trim();
     if (!trimmedTitle) {
       return;
     }
@@ -414,21 +290,80 @@ export default function SettingsPage() {
         }
 
         return applyDraft(practice, {
-          ...editDraft,
+          ...editing.draft,
           title: trimmedTitle,
         });
       }),
     );
 
-    cancelEditing();
+    setEditing(null);
+    setNotice("Saved.");
   }
 
   function removePractice(practice: Practice): void {
     setPractices((current) => current.filter((entry) => entry.id !== practice.id));
     setCompletionByDate((current) => removePracticeFromCompletion(current, practice.id));
 
-    if (editingId === practice.id) {
-      cancelEditing();
+    if (editing?.id === practice.id) {
+      setEditing(null);
+    }
+
+    setPendingDeleteId(null);
+    setNotice("Deleted.");
+  }
+
+  function downloadBackupFile(payload: SanctaState): void {
+    const exportPayload = createExportPayload(payload);
+    const fileBlob = new Blob([JSON.stringify(exportPayload, null, 2)], {
+      type: "application/json",
+    });
+
+    const url = URL.createObjectURL(fileBlob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `sancta-list-backup-${todayKey}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleExport(): void {
+    downloadBackupFile({
+      practices,
+      completionByDate,
+      quote: quote ?? undefined,
+    });
+
+    setNotice("Backup downloaded.");
+  }
+
+  async function handleImport(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as unknown;
+      const imported = parseImportPayload(parsed);
+
+      if (!imported) {
+        setNotice("Invalid backup file.");
+        return;
+      }
+
+      setPractices(imported.practices);
+      setCompletionByDate(imported.completionByDate);
+      setQuote(imported.quote ?? null);
+
+      setEditing(null);
+      setPendingDeleteId(null);
+      setNewDraft(makeDefaultDraft(dayOfMonth));
+      setNotice("Backup imported.");
+    } catch {
+      setNotice("Import failed.");
     }
   }
 
@@ -460,10 +395,39 @@ export default function SettingsPage() {
           </nav>
         </header>
 
+        <section className="card">
+          <div className="section-head">
+            <h2>Backup</h2>
+            <div className="row-actions">
+              <button type="button" className="ghost-btn" onClick={handleExport}>
+                Export
+              </button>
+              <label className="ghost-btn file-btn">
+                Import
+                <input
+                  type="file"
+                  accept="application/json"
+                  className="file-input"
+                  onChange={(event) => {
+                    void handleImport(event);
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+          {notice ? <p className="small-note">{notice}</p> : null}
+        </section>
+
         <section className="settings-grid">
           <article className="card">
             <h2>Add</h2>
-            <AddPracticeForm draft={newDraft} setDraft={setNewDraft} onSubmit={handleAddPractice} />
+            <PracticeForm
+              idPrefix="add"
+              draft={newDraft}
+              onDraftChange={setNewDraft}
+              onSubmit={handleAddPractice}
+              submitLabel="Add"
+            />
           </article>
 
           <article className="card">
@@ -474,15 +438,27 @@ export default function SettingsPage() {
             ) : (
               <ul className="list-clean">
                 {sortedPractices.map((practice) => {
-                  const isEditing = editingId === practice.id && Boolean(editDraft);
+                  const isEditing = editing?.id === practice.id;
+                  const isConfirmingDelete = pendingDeleteId === practice.id;
 
                   return (
                     <li key={practice.id} className="settings-row">
-                      {isEditing && editDraft ? (
-                        <EditPracticeForm
-                          draft={editDraft}
-                          setDraft={setEditDraft}
-                          onSave={() => saveEditing(practice.id)}
+                      {isEditing && editing ? (
+                        <PracticeForm
+                          idPrefix={`edit-${practice.id}`}
+                          draft={editing.draft}
+                          onDraftChange={(next) => {
+                            setEditing((current) =>
+                              current && current.id === practice.id
+                                ? {
+                                    ...current,
+                                    draft: next,
+                                  }
+                                : current,
+                            );
+                          }}
+                          onSubmit={(event) => saveEditing(event, practice.id)}
+                          submitLabel="Save"
                           onCancel={cancelEditing}
                         />
                       ) : (
@@ -492,22 +468,41 @@ export default function SettingsPage() {
                             <p className="small-note">{frequencyLabel(practice)}</p>
                           </div>
 
-                          <div className="row-actions">
-                            <button
-                              type="button"
-                              className="ghost-btn"
-                              onClick={() => startEditing(practice)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="danger-btn"
-                              onClick={() => removePractice(practice)}
-                            >
-                              Remove
-                            </button>
-                          </div>
+                          {isConfirmingDelete ? (
+                            <div className="row-actions confirm-actions">
+                              <button
+                                type="button"
+                                className="danger-btn"
+                                onClick={() => removePractice(practice)}
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost-btn"
+                                onClick={() => setPendingDeleteId(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="row-actions">
+                              <button
+                                type="button"
+                                className="ghost-btn"
+                                onClick={() => startEditing(practice)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="danger-btn"
+                                onClick={() => setPendingDeleteId(practice.id)}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          )}
                         </>
                       )}
                     </li>
