@@ -15,10 +15,10 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Sancta List",
+  title: "Index Sanctus",
   description:
     "A clean Catholic to-do app for custom spiritual practices with flexible schedules and Douay-Rheims Bible quotes.",
-  applicationName: "Sancta List",
+  applicationName: "Index Sanctus",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Sancta List",
+    title: "Index Sanctus",
   },
 };
 

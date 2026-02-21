@@ -1,4 +1,4 @@
-# Sancta List
+# Index Sanctus
 
 A clean Catholic practice planner with a focused Today page and a dedicated Settings page.
 

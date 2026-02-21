@@ -383,7 +383,7 @@ export default function SettingsPage() {
     <div className="shell">
       <main className="layout">
         <header className="topbar">
-          <h1 className="brand-title">Settings</h1>
+          <h1 className="brand-title">Index Sanctus</h1>
 
           <nav className="tabs" aria-label="Primary">
             <Link href="/" className="tab">

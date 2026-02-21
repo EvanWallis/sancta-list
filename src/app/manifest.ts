@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Sancta List",
-    short_name: "Sancta List",
+    name: "Index Sanctus",
+    short_name: "Index Sanctus",
     description:
       "Catholic custom-practice planner with flexible frequencies and Douay-Rheims public-domain scripture quotes.",
     start_url: "/",

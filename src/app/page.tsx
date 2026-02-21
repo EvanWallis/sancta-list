@@ -107,7 +107,7 @@ export default function TodayPage() {
       <main className="layout">
         <header className="topbar">
           <div>
-            <h1 className="brand-title">Sancta List</h1>
+            <h1 className="brand-title">Index Sanctus</h1>
             <p className="small-note season-note">{season.label}</p>
           </div>
 
